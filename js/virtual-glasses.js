@@ -1,286 +1,539 @@
-import * as THREE from '../node_modules/three/build/three.module.js';
-import {OrbitControls} from '../node_modules/three/examples/jsm/controls/OrbitControls.js';
-import {GLTFLoader} from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
+/**
+ * Virtual Glasses Try-On Application
+ * Main application class that handles face detection and glasses overlay
+ */
 
-const webcamElement = document.getElementById('webcam');
-const canvasElement = document.getElementById('canvas');
-const webcam = new Webcam(webcamElement, 'user');
-let selectedglasses = $(".selected-glasses img");
-let isVideo = false;
-let model = null;
-let cameraFrame = null;
-let detectFace = false;
-let clearglasses = false;
-let glassesOnImage = false;
-let glassesArray = [];
-let scene;
-let camera;
-let renderer;
-let obControls;
-let glassesKeyPoints = {midEye:168, leftEye:143, noseBottom:2, rightEye:372};
-
-$( document ).ready(function() {
-    setup3dScene();
-    setup3dCamera();
-    setup3dGlasses();
-});
-
-$("#webcam-switch").change(function () {
-    if(this.checked){
-        $('.md-modal').addClass('md-show');
-        webcam.start()
-            .then(result =>{
-                console.log("webcam started"); 
-                isVideo = true;
-                cameraStarted();
-                switchSource();                            
-                glassesOnImage = false;
-                startVTGlasses();
-            })
-            .catch(err => {
-                displayError();
-            });
+class VirtualGlassesTryOn {
+    constructor() {
+        this.webcamUI = new WebcamUILib();
+        this.model = null;
+        this.animationId = null;
+        this.currentGlassesStyle = 'glasses-04';
+        this.currentGlassesImage = '3dmodel/glasses-04/glasses_04.png';
+        this.glassesImg = null;
+        this.isModelLoaded = false;
+        
+        // Position smoothing for stable glasses overlay
+        this.lastGlassesPosition = { x: 0, y: 0, width: 0, height: 0, angle: 0 };
+        this.smoothingFactor = 0.7; // Higher = more smoothing, less jitter
+        
+        // Face detection settings
+        this.faceDetectionConfig = {
+            maxFaces: 1,  // Focus on one face for better accuracy
+            refineLandmarks: true,
+            minDetectionConfidence: 0.7, // Higher confidence for better accuracy
+            minTrackingConfidence: 0.5
+        };
+        
+        this.init();
     }
-    else {      
-        webcam.stop();
-        if(cameraFrame!= null){
-            clearglasses = true;
-            detectFace = false;
-            cancelAnimationFrame(cameraFrame);
-        }
-        isVideo = false;
-        switchSource();
-        cameraStopped(); 
-        console.log("webcam stopped");
-    }        
-});
 
-$("#arrowLeft").click(function () {
-    let itemWidth = parseInt($("#glasses-list ul li").css("width")) 
-                    + parseInt($("#glasses-list ul li").css("margin-left")) 
-                    + parseInt($("#glasses-list ul li").css("margin-right"));
-    let marginLeft = parseInt($("#glasses-list ul").css("margin-left"));
-    $("#glasses-list ul").css({"margin-left": (marginLeft+itemWidth) +"px", "transition": "0.3s"});
-});
-
-$("#arrowRight").click(function () {
-    let itemWidth = parseInt($("#glasses-list ul li").css("width")) 
-    + parseInt($("#glasses-list ul li").css("margin-left")) 
-    + parseInt($("#glasses-list ul li").css("margin-right"));
-    let marginLeft = parseInt($("#glasses-list ul").css("margin-left"));
-    $("#glasses-list ul").css({"margin-left": (marginLeft-itemWidth) +"px", "transition": "0.3s"});
-});
-
-$("#glasses-list ul li").click(function () {
-    $(".selected-glasses").removeClass("selected-glasses");
-    $(this).addClass("selected-glasses");
-    selectedglasses = $(".selected-glasses img");
-    clearCanvas();
-    if(!isVideo){
-        setup3dGlasses();
-        setup3dAnimate();
-    }
-});
-
-$('#closeError').click(function() {
-    $("#webcam-switch").prop('checked', false).change();
-});
-
-async function startVTGlasses() {
-    return new Promise((resolve, reject) => {
-        $(".loading").removeClass('d-none');
-        faceLandmarksDetection.load(faceLandmarksDetection.SupportedPackages.mediapipeFacemesh).then(mdl => { 
-            model = mdl;            
-            console.log("model loaded");
-            if(isVideo && webcam.facingMode == 'user'){
-                detectFace = true;
+    /**
+     * Initialize the application
+     */
+    init() {
+        this.setupEventListeners();
+        this.setupWebcamCallbacks();
+        this.preloadGlassesImages();
+        this.updateStatus('Ready - Click Start Camera');
+        
+        // Check if required libraries are loaded
+        setTimeout(() => {
+            if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
+                this.showError('Required AI libraries failed to load. Please refresh the page.');
             }
-            
-            cameraFrame =  detectFaces().then(() => {
-                $(".loading").addClass('d-none');
-                resolve();
-            }); 
-        })
-        .catch(err => {
-            displayError('Fail to load face mesh model<br/>Please refresh the page to try again');
-            reject(error);
+        }, 2000);
+    }
+
+    /**
+     * Setup event listeners for UI elements
+     */
+    setupEventListeners() {
+        // Camera controls
+        const startBtn = document.getElementById('startCamera');
+        const stopBtn = document.getElementById('stopCamera');
+        const captureBtn = document.getElementById('capturePhoto');
+        
+        if (startBtn) startBtn.addEventListener('click', () => this.startCamera());
+        if (stopBtn) stopBtn.addEventListener('click', () => this.stopCamera());
+        if (captureBtn) captureBtn.addEventListener('click', () => this.capturePhoto());
+
+        // Glasses selection
+        document.querySelectorAll('.glasses-option').forEach(option => {
+            option.addEventListener('click', (e) => this.selectGlasses(e.currentTarget));
         });
-    });
-}
 
-async function detectFaces() {
-    let inputElement = webcamElement;
-    let flipHorizontal = !isVideo;
-    
-    await model.estimateFaces
-    ({
-        input: inputElement,
-        returnTensors: false,
-        flipHorizontal: flipHorizontal,
-        predictIrises: false
-    }).then(faces => {
-        //console.log(faces);
-        drawglasses(faces).then(() => {
-            if(clearglasses){
-                clearCanvas();
-                clearglasses = false;
-            }
-            if(detectFace){
-                cameraFrame = requestAnimFrame(detectFaces);
+        // Error handling
+        const closeErrorBtn = document.getElementById('closeError');
+        if (closeErrorBtn) {
+            closeErrorBtn.addEventListener('click', () => this.webcamUI.hideError());
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', () => this.cleanup());
+    }
+
+    /**
+     * Setup webcam UI callbacks
+     */
+    setupWebcamCallbacks() {
+        this.webcamUI.setCallbacks({
+            onStart: () => this.onCameraStart(),
+            onStop: () => this.onCameraStop(),
+            onError: (error) => this.onCameraError(error)
+        });
+    }
+
+    /**
+     * Preload all glasses images
+     */
+    preloadGlassesImages() {
+        const glassesOptions = document.querySelectorAll('.glasses-option');
+        
+        glassesOptions.forEach(option => {
+            const imgSrc = option.dataset.image;
+            if (imgSrc) {
+                const img = new Image();
+                img.src = imgSrc;
+                // Handle broken image links
+                img.onerror = () => {
+                    console.warn(`Failed to load glasses image: ${imgSrc}`);
+                    option.style.opacity = '0.5';
+                    option.title = 'Image not available';
+                };
             }
         });
-    });
-}
 
-async function drawglasses(faces){
-    if(isVideo && (glassesArray.length != faces.length) ){
-        clearCanvas();
-        for (let j = 0; j < faces.length; j++) {
-            await setup3dGlasses();
+        // Load initial glasses image
+        this.loadGlassesImage(this.currentGlassesImage);
+    }
+
+    /**
+     * Load specific glasses image
+     */
+    loadGlassesImage(imageSrc) {
+        this.glassesImg = new Image();
+        this.glassesImg.onload = () => {
+            this.updateStatus(`Loaded glasses: ${this.currentGlassesStyle}`);
+        };
+        this.glassesImg.onerror = () => {
+            console.error(`Failed to load glasses image: ${imageSrc}`);
+            this.showError(`Failed to load glasses image: ${imageSrc}`);
+        };
+        this.glassesImg.src = imageSrc;
+    }
+
+    /**
+     * Start camera and face detection
+     */
+    async startCamera() {
+        const success = await this.webcamUI.startCamera();
+        if (success) {
+            await this.loadFaceDetectionModel();
+            this.startFaceDetection();
         }
-    }   
+    }
 
-    for (let i = 0; i < faces.length; i++) {
-        let glasses = glassesArray[i];
-        let face = faces[i];
-        if(typeof glasses !== "undefined" && typeof face !== "undefined")
-        {
-            let pointMidEye = face.scaledMesh[ glassesKeyPoints.midEye ];
-            let pointleftEye = face.scaledMesh[ glassesKeyPoints.leftEye ];
-            let pointNoseBottom = face.scaledMesh[ glassesKeyPoints.noseBottom ];
-            let pointrightEye = face.scaledMesh[ glassesKeyPoints.rightEye ];
+    /**
+     * Stop camera and face detection
+     */
+    stopCamera() {
+        this.stopFaceDetection();
+        this.webcamUI.stopCamera();
+    }
 
-            glasses.position.x = pointMidEye[ 0 ];
-            glasses.position.y = -pointMidEye[ 1 ] + parseFloat(selectedglasses.attr("data-3d-up"));
-            glasses.position.z = -camera.position.z + pointMidEye[ 2 ];
+    /**
+     * Capture photo with glasses overlay
+     */
+    capturePhoto() {
+        const filename = `virtual-glasses-${this.currentGlassesStyle}-${Date.now()}.png`;
+        this.webcamUI.capturePhoto(filename);
+    }
 
-            glasses.up.x = pointMidEye[ 0 ] - pointNoseBottom[ 0 ];
-            glasses.up.y = -( pointMidEye[ 1 ] - pointNoseBottom[ 1 ] );
-            glasses.up.z = pointMidEye[ 2 ] - pointNoseBottom[ 2 ];
-            const length = Math.sqrt( glasses.up.x ** 2 + glasses.up.y ** 2 + glasses.up.z ** 2 );
-            glasses.up.x /= length;
-            glasses.up.y /= length;
-            glasses.up.z /= length;
+    /**
+     * Load TensorFlow face detection model
+     */
+    async loadFaceDetectionModel() {
+        if (this.model || this.isModelLoaded) return;
 
-            const eyeDist = Math.sqrt(
-                ( pointleftEye[ 0 ] - pointrightEye[ 0 ] ) ** 2 +
-                ( pointleftEye[ 1 ] - pointrightEye[ 1 ] ) ** 2 +
-                ( pointleftEye[ 2 ] - pointrightEye[ 2 ] ) ** 2
+        try {
+            this.updateStatus('Loading AI model...');
+            this.webcamUI.showLoading();
+
+            this.model = await faceLandmarksDetection.load(
+                faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+                this.faceDetectionConfig
             );
-            glasses.scale.x = eyeDist * parseFloat(selectedglasses.attr("data-3d-scale")) ;
-            glasses.scale.y = eyeDist * parseFloat(selectedglasses.attr("data-3d-scale")) ;
-            glasses.scale.z = eyeDist * parseFloat(selectedglasses.attr("data-3d-scale")) ;
-
-            glasses.rotation.y = Math.PI;
-            glasses.rotation.z = Math.PI / 2 - Math.acos( glasses.up.x );
             
-            renderer.render(scene, camera);
+            this.isModelLoaded = true;
+            this.webcamUI.hideLoading();
+            this.updateStatus('AI model loaded successfully');
+
+        } catch (error) {
+            this.webcamUI.hideLoading();
+            this.showError(`AI model loading failed: ${error.message}`);
+            throw error;
         }
     }
-}
 
+    /**
+     * Start face detection loop
+     */
+    startFaceDetection() {
+        if (!this.webcamUI.isActive() || !this.model) return;
+        
+        this.detectFaces();
+        this.updateStatus('Face detection running');
+    }
 
-function clearCanvas(){
-    for( var i = scene.children.length - 1; i >= 0; i--) { 
-        var obj = scene.children[i];
-        if(obj.type=='Group'){
-            scene.remove(obj);
+    /**
+     * Stop face detection loop
+     */
+    stopFaceDetection() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
         }
     }
-    renderer.render(scene, camera);
-    glassesArray = [];
-}
 
-function switchSource(){
-    clearCanvas();
-    let containerElement
-    if(isVideo){
-        containerElement = $("#webcam-container");
-    }else{
-        containerElement = $("#image-container");
-        setup3dGlasses();
-    }
-    setup3dCamera();
-    $("#canvas").appendTo(containerElement);
-    $(".loading").appendTo(containerElement);
-    $("#glasses-slider").appendTo(containerElement);
-}
+    /**
+     * Main face detection and glasses rendering loop
+     */
+    async detectFaces() {
+        if (!this.webcamUI.isActive() || !this.model) return;
 
-function setup3dScene(){
-    scene = new THREE.Scene();
-    renderer = new THREE.WebGLRenderer({
-        canvas: canvasElement,
-        alpha: true
-    });
-    //light
-    var frontLight = new THREE.SpotLight( 0xffffff, 0.3 );
-    frontLight.position.set( 10, 10, 10 );
-    scene.add( frontLight );
-    var backLight = new THREE.SpotLight( 0xffffff, 0.3  );
-    backLight.position.set( 10, 10, -10)
-    scene.add(backLight);
-}
-    
+        try {
+            const video = this.webcamUI.getVideoElement();
+            const canvas = this.webcamUI.getCanvasElement();
+            const ctx = this.webcamUI.getCanvasContext();
 
-function setup3dCamera(){  
-    if(isVideo){
-        camera = new THREE.PerspectiveCamera( 45, 1, 0.1, 2000 );
-        let videoWidth = webcamElement.width;
-        let videoHeight = webcamElement.height;
-        camera.position.x = videoWidth / 2;
-        camera.position.y = -videoHeight / 2;
-        camera.position.z = -( videoHeight / 2 ) / Math.tan( 45 / 2 ); 
-        camera.lookAt( { x: videoWidth / 2, y: -videoHeight / 2, z: 0, isVector3: true } );
-        renderer.setSize(videoWidth, videoHeight);
-        renderer.setClearColor(0x000000, 0);
-    }
-    else{  
-        camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
-        camera.position.set(0, 0, 1.5);
-        camera.lookAt(scene.position);
-        renderer.setSize( window.innerWidth, window.innerHeight );
-        renderer.setClearColor( 0x3399cc, 1 ); 
-        obControls = new OrbitControls(camera, renderer.domElement);  
-    }
-    let cameraExists = false;
-    scene.children.forEach(function(child){
-        if(child.type=='PerspectiveCamera'){
-            cameraExists = true;
-        }
-    });
-    if(!cameraExists){
-        camera.add( new THREE.PointLight( 0xffffff, 0.8 ) );
-        scene.add( camera );
-    }
-    setup3dAnimate();
-}
+            if (!video || !canvas || !ctx) return;
 
-async function setup3dGlasses(){
-    return new Promise(resolve => {
-        var threeType = selectedglasses.attr("data-3d-type");
-        if(threeType == 'gltf'){
-            var gltfLoader = new GLTFLoader();
-            gltfLoader.setPath(selectedglasses.attr("data-3d-model-path"));
-            gltfLoader.load( selectedglasses.attr("data-3d-model"), function ( object ) {
-                object.scene.position.set(selectedglasses.attr("data-3d-x"), selectedglasses.attr("data-3d-y"), selectedglasses.attr("data-3d-z"));
-                var scale = selectedglasses.attr("data-3d-scale");
-                if(window.innerWidth < 480){
-                    scale = scale * 0.5;
-                }
-                object.scene.scale.set(scale, scale,scale);
-                scene.add( object.scene );
-                glassesArray.push(object.scene);
-                resolve('loaded');        
+            // Detect faces
+            const faces = await this.model.estimateFaces({
+                input: video,
+                returnTensors: false,
+                flipHorizontal: false,
+                predictIrises: true
             });
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw glasses on each detected face
+            faces.forEach(face => {
+                if (face.scaledMesh && face.scaledMesh.length > 168) {
+                    this.drawGlassesOnFace(ctx, face.scaledMesh);
+                }
+            });
+
+            // Update face count display
+            this.webcamUI.updateFaceCount(faces.length);
+
+        } catch (error) {
+            console.warn('Face detection error:', error);
         }
-    });
+
+        // Continue detection loop
+        if (this.webcamUI.isActive()) {
+            this.animationId = requestAnimationFrame(() => this.detectFaces());
+        }
+    }
+
+    /**
+     * Draw glasses on detected face using landmarks
+     */
+    drawGlassesOnFace(ctx, landmarks) {
+        if (!this.glassesImg || !this.glassesImg.complete) return;
+
+        // More reliable landmark indices for MediaPipe Face Mesh
+        const leftEyeInner = landmarks[133];   // Left eye inner corner
+        const rightEyeInner = landmarks[362];  // Right eye inner corner
+        const leftEyeOuter = landmarks[33];    // Left eye outer corner  
+        const rightEyeOuter = landmarks[263];  // Right eye outer corner
+        const leftEyeTop = landmarks[159];     // Left eye top
+        const rightEyeTop = landmarks[386];    // Right eye top
+        const noseTip = landmarks[1];          // Nose tip
+        const noseBridge = landmarks[168];     // Nose bridge
+
+        if (!leftEyeInner || !rightEyeInner || !leftEyeOuter || !rightEyeOuter) {
+            console.warn('Essential eye landmarks not detected');
+            return;
+        }
+
+        // Calculate more accurate eye centers
+        const leftEyeCenter = [
+            (leftEyeInner[0] + leftEyeOuter[0]) / 2,
+            (leftEyeInner[1] + leftEyeOuter[1] + leftEyeTop[1]) / 3  // Include top for better Y position
+        ];
+        const rightEyeCenter = [
+            (rightEyeInner[0] + rightEyeOuter[0]) / 2,
+            (rightEyeInner[1] + rightEyeOuter[1] + rightEyeTop[1]) / 3
+        ];
+
+        // Calculate the center point between eyes
+        const eyesCenterX = (leftEyeCenter[0] + rightEyeCenter[0]) / 2;
+        const eyesCenterY = (leftEyeCenter[1] + rightEyeCenter[1]) / 2;
+
+        // Position glasses at eye level (not above)
+        const glassesX = eyesCenterX;
+        const glassesY = eyesCenterY - 5; // Only slight adjustment upward
+
+        // Calculate inter-pupillary distance for proper scaling
+        const eyeDistance = Math.sqrt(
+            Math.pow(rightEyeCenter[0] - leftEyeCenter[0], 2) + 
+            Math.pow(rightEyeCenter[1] - leftEyeCenter[1], 2)
+        );
+
+        // Calculate face tilt angle but limit it severely
+        let faceAngle = Math.atan2(
+            rightEyeCenter[1] - leftEyeCenter[1], 
+            rightEyeCenter[0] - leftEyeCenter[0]
+        );
+        
+        // Severely limit rotation - keep glasses nearly horizontal
+        faceAngle = Math.max(-0.1, Math.min(0.1, faceAngle)); // Max 5.7 degrees
+
+        // Improved scaling - glasses should span across both eyes
+        const glassesScale = eyeDistance / 80; // Adjusted scale factor
+        let finalWidth = this.glassesImg.width * glassesScale;
+        let finalHeight = this.glassesImg.height * glassesScale;
+
+        // Ensure glasses are wide enough to cover both eyes
+        const minWidth = eyeDistance * 1.8; // At least 1.8x the eye distance
+        const maxWidth = eyeDistance * 2.5; // Maximum reasonable width
+        
+        finalWidth = Math.max(minWidth, Math.min(maxWidth, finalWidth));
+        finalHeight = finalWidth * (this.glassesImg.height / this.glassesImg.width);
+
+        // Apply position smoothing but with adjusted parameters
+        if (this.lastGlassesPosition.x === 0) {
+            // First frame - initialize without smoothing
+            this.lastGlassesPosition = {
+                x: glassesX,
+                y: glassesY,
+                width: finalWidth,
+                height: finalHeight,
+                angle: faceAngle
+            };
+        }
+
+        const smoothingFactor = 0.6; // Reduced for more responsiveness
+        const smoothedX = this.lastGlassesPosition.x * smoothingFactor + glassesX * (1 - smoothingFactor);
+        const smoothedY = this.lastGlassesPosition.y * smoothingFactor + glassesY * (1 - smoothingFactor);
+        const smoothedWidth = this.lastGlassesPosition.width * smoothingFactor + finalWidth * (1 - smoothingFactor);
+        const smoothedHeight = this.lastGlassesPosition.height * smoothingFactor + finalHeight * (1 - smoothingFactor);
+        const smoothedAngle = this.lastGlassesPosition.angle * smoothingFactor + faceAngle * (1 - smoothingFactor);
+
+        // Update last position
+        this.lastGlassesPosition = {
+            x: smoothedX,
+            y: smoothedY,
+            width: smoothedWidth,
+            height: smoothedHeight,
+            angle: smoothedAngle
+        };
+
+        // Draw glasses
+        ctx.save();
+        
+        // Better blending
+        ctx.globalAlpha = 0.9;
+        ctx.globalCompositeOperation = 'source-over';
+        
+        // Transform and draw
+        ctx.translate(smoothedX, smoothedY);
+        ctx.rotate(smoothedAngle);
+        
+        // Draw centered on the face
+        ctx.drawImage(
+            this.glassesImg,
+            -smoothedWidth / 2,
+            -smoothedHeight / 2,
+            smoothedWidth,
+            smoothedHeight
+        );
+        
+        // Optional: Draw debug points to verify positioning
+        if (false) { // Set to true for debugging
+            ctx.restore();
+            ctx.save();
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(leftEyeCenter[0], leftEyeCenter[1], 3, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(rightEyeCenter[0], rightEyeCenter[1], 3, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'blue';
+            ctx.beginPath();
+            ctx.arc(glassesX, glassesY, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+        
+        ctx.restore();
+    }
+
+    /**
+     * Select glasses style
+     */
+    selectGlasses(element) {
+        // Update UI
+        document.querySelector('.glasses-option.active')?.classList.remove('active');
+        element.classList.add('active');
+        
+        // Update current style and image
+        this.currentGlassesStyle = element.dataset.style;
+        this.currentGlassesImage = element.dataset.image;
+        
+        // Load new glasses image
+        this.loadGlassesImage(this.currentGlassesImage);
+        
+        this.updateStatus(`Selected: ${element.querySelector('.label').textContent} glasses`);
+    }
+
+    /**
+     * Camera start callback
+     */
+    onCameraStart() {
+        this.updateStatus('Camera started successfully');
+    }
+
+    /**
+     * Camera stop callback
+     */
+    onCameraStop() {
+        this.stopFaceDetection();
+        this.updateStatus('Camera stopped');
+    }
+
+    /**
+     * Camera error callback
+     */
+    onCameraError(error) {
+        this.stopFaceDetection();
+        console.error('Camera error:', error);
+    }
+
+    /**
+     * Show error message
+     */
+    showError(message) {
+        this.webcamUI.showError(message);
+    }
+
+    /**
+     * Update status display
+     */
+    updateStatus(message) {
+        this.webcamUI.updateStatus(message);
+    }
+
+    /**
+     * Cleanup resources
+     */
+    cleanup() {
+        this.stopFaceDetection();
+        this.webcamUI.cleanup();
+        
+        if (this.model) {
+            // TensorFlow.js models don't need explicit disposal for face landmarks
+            this.model = null;
+        }
+        
+        this.isModelLoaded = false;
+    }
+
+    /**
+     * Get current glasses information
+     */
+    getCurrentGlasses() {
+        return {
+            style: this.currentGlassesStyle,
+            image: this.currentGlassesImage
+        };
+    }
+
+    /**
+     * Check if face detection is running
+     */
+    isFaceDetectionActive() {
+        return this.animationId !== null && this.webcamUI.isActive();
+    }
+
+    /**
+     * Update face detection configuration
+     */
+    updateFaceDetectionConfig(config) {
+        this.faceDetectionConfig = { ...this.faceDetectionConfig, ...config };
+        
+        // Reload model with new config if needed
+        if (this.isModelLoaded) {
+            this.isModelLoaded = false;
+            this.model = null;
+            if (this.webcamUI.isActive()) {
+                this.loadFaceDetectionModel().then(() => {
+                    this.startFaceDetection();
+                });
+            }
+        }
+    }
+
+    /**
+     * Get face detection statistics
+     */
+    getFaceDetectionStats() {
+        return {
+            isModelLoaded: this.isModelLoaded,
+            isDetectionRunning: this.isFaceDetectionActive(),
+            currentConfig: this.faceDetectionConfig
+        };
+    }
 }
 
-var setup3dAnimate = function () {
-    if(!isVideo){
-        requestAnimationFrame( setup3dAnimate );
-        obControls.update();
-    }
-    renderer.render(scene, camera);
-};
+// Initialize the application when DOM is ready
+let virtualGlassesApp;
 
+document.addEventListener('DOMContentLoaded', () => {
+    // Check for required dependencies
+    if (!WebcamUILib) {
+        console.error('WebcamUILib not found. Please include webcam-ui-lib.js');
+        return;
+    }
+
+    if (typeof tf === 'undefined') {
+        console.error('TensorFlow.js not found. Please include TensorFlow.js');
+        return;
+    }
+
+    if (typeof faceLandmarksDetection === 'undefined') {
+        console.error('Face Landmarks Detection not found. Please include face-landmarks-detection.js');
+        return;
+    }
+
+    // Initialize the application
+    try {
+        virtualGlassesApp = new VirtualGlassesTryOn();
+        console.log('Virtual Glasses Try-On application initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize Virtual Glasses Try-On:', error);
+    }
+});
+
+// Handle page visibility changes
+document.addEventListener('visibilitychange', () => {
+    if (virtualGlassesApp) {
+        if (document.hidden) {
+            // Pause face detection when page is hidden
+            virtualGlassesApp.stopFaceDetection();
+        } else if (virtualGlassesApp.webcamUI.isActive()) {
+            // Resume face detection when page is visible again
+            setTimeout(() => {
+                virtualGlassesApp.startFaceDetection();
+            }, 100);
+        }
+    }
+});
+
+// Export for global access
+window.VirtualGlassesTryOn = VirtualGlassesTryOn;

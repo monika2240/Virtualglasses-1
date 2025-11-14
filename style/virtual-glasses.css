@@ -1,269 +1,315 @@
-#virtual-glasses-app {
-    background-position: center center;
-    background-repeat: no-repeat;
-    background-size: cover;
-    width: 100%;
-    height: 100vh;
-    overflow: hidden;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-#image-container{
-    position: relative;
-    margin-top: -55px;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    backdrop-filter: blur(10px);
+}
+
+.header {
     text-align: center;
+    margin-bottom: 30px;
 }
 
-#button-control{
+.header h1 {
+    color: #333;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 700;
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.header p {
+    color: #666;
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+}
+
+.camera-section {
     position: relative;
-    bottom: 200px;
-    left: 0;
-    right: 0;
-    height: 65px;
-    margin: auto;
-    background: transparent;
-    border: 0;
-    width: 320px;
-    z-index: 99999;
-}
-
-.form-control.webcam-start{
-    top: 68%!important;
-    width: 200px;
-}
-
-.form-control.webcam-on{
-    top: 15%!important;
-}
-
-#canvas { 
-    width: 640px;
-    height: 480px;
-	overflow: hidden;
-    position: absolute;
-    top: 0;
-    z-index: 888!important;
-}
-
-.loading{
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index:300000;
-    border: white 1px;
-    color: white;
-    padding: 75px 26px;
-    font-size: 22px;
-    margin: auto;
-    width: 200px;
-    height: 200px;
-}
-
-.spinner-border {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 200px;
-    height: 200px;
-    color: white;
-    z-index:300000;
-    filter: alpha(opacity=80);
-    -moz-opacity: 0.8;
-    opacity: 0.8;   
-}
-
-.dot {
-    height: 10px;
-    width: 10px;
-    background-color: red;
-    border-radius: 50%;
-    display: inline-block;
-    z-index: 999999;
-}
-
-#arrowLeft{
-    position: absolute;
-    left: 10px;
-    top: 0;
-    bottom: 0;
-    z-index: 999999;
-    opacity: 0.7;
-    cursor: pointer;
-    margin: auto;
-}
-
-#arrowRight{
-    position: absolute;
-    right: 10px;
-    top: 0;
-    bottom: 0;
-    z-index: 999999;
-    opacity: 0.7;
-    cursor: pointer;
-    margin: auto;
-}
-
-#glasses-slider{
-    width: 100%;
-    height: 125px;
-    margin: auto;
-    position: absolute;
-    bottom: 0px;
-    background-color: black;
-    opacity: 0.7;
-    left: 0;
-    right: 0;
-    z-index: 998;
-}
-
-#glasses-list{
-    position: relative;
-    width: 85%;
-    height: 125px;
-    margin: auto;
+    background: #000;
+    border-radius: 15px;
     overflow: hidden;
+    margin-bottom: 25px;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-#glasses-slider ul{
-    list-style: none;
-    width: 10000px;
-    height: 125px;
-    padding-left: 10px;
-    margin-bottom: 0;
-    margin-top: 10px;
+#video {
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    transform: scaleX(-1);
+    border-radius: 15px;
 }
 
-#glasses-slider ul li {
-    width: 100px;
-    height: 100px;
-    line-height: 80px;
+#canvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scaleX(-1);
+    pointer-events: none;
+    z-index: 2;
+    border-radius: 15px;
+}
+
+.placeholder {
+    color: #fff;
+    font-size: 1.3rem;
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.placeholder .icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    opacity: 0.7;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 25px;
+}
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    min-width: 140px;
+}
+
+.btn-primary {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    color: white;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.btn-danger {
+    background: linear-gradient(45deg, #dc3545, #c82333);
+    color: white;
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+.btn-secondary {
+    background: linear-gradient(45deg, #6c757d, #5a6268);
+    color: white;
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.glasses-selector {
+    background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+    border-radius: 15px;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.glasses-selector h3 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 1.3rem;
+}
+
+.glasses-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.glasses-option {
     background: white;
-    float: left;
-    margin: 5px 15px;
-    vertical-align: middle;
-    text-align: center;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    padding: 15px;
     cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
 }
 
-#glasses-slider ul li img {
-    width: 85px;
-    margin: auto;
+.glasses-option:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
 }
 
-.glasses{
-    border: 0px;
+.glasses-option.active {
+    border-color: #667eea;
+    background: linear-gradient(145deg, #e3f2fd, #bbdefb);
+    transform: translateY(-3px) scale(1.05);
 }
 
-.selected-glasses{
-    border: 5px solid #0099cc;
+.glasses-preview {
+    width: 80px;
+    height: 40px;
+    object-fit: contain;
+    margin-bottom: 10px;
+    filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
 }
 
-.full-glasses{
-    height: 85px!important;
-    width: auto!important;
-}
-@media screen and (max-width: 480px) {
-    #glasses-slider{
-        width: 100%;
-        bottom: auto;
-        top: 500px;
-    }
-}
-@media screen and (max-width: 1024px) {
-    .loading{
-        padding: 55px 0px;
-        font-size: medium;
-        width: 150px;
-    }
-    .spinner-border{
-        width: 150px;
-        height: 150px;
-    }
-
-    #glasses-list {
-        width: 80%;
-    }
-    #glasses-list ul {
-        padding-left: 0;
-        margin-top: 25px;
-    }
-    #glasses-list ul li {
-        width: 75px;
-        height: 75px;
-        line-height: 60px;
-        margin: 5px 8px;
-    }
-    #glasses-list ul li img {
-        width: 65px;
-    }
-
-    .full-glasses{
-        height: 65px!important;
-        width: auto!important;
-        margin-left: 3px!important;
-    }
-
-    #glasses-btn{
-        font-size: 28px;
-    }
+.glasses-option.active .glasses-preview {
+    filter: drop-shadow(2px 2px 8px rgba(102, 126, 234, 0.4));
 }
 
-@media screen and (max-width: 767px) {
-    #face-glasses-app{
-        height: 100vh;
-    }
-    #arrowLeft{
-        height: 43px;
-    }
-    #arrowRight{
-        height: 43px;
-    }
+.glasses-option .label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+    text-transform: capitalize;
 }
 
-@media screen and (min-width: 450px) and (max-width: 767px) {
-    .form-control.webcam-start{
-        top: 0!important;
-    }
-
-    #glasses-list {
-        width: 86%;
-    }
-}
-
-@media screen and (max-width: 450px) {
-    .form-control.webcam-start{
-        top: 5%!important;
-    }
-    .form-control.webcam-on{
-        top: 15%!important;
-    }
-    #button-control{
-        bottom: 350px;
-    }
-}
-
-.md-modal {
-    margin: 0!important;
-}
-
-
-#webcam-container #glasses-slider{
+.status {
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 25px;
     position: fixed;
-    bottom: 0px;
-    width: 100%;
-    margin: 0 0 0 auto;
+    top: 20px;
+    right: 20px;
+    font-size: 0.9rem;
+    font-family: monospace;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
 }
 
-#webcam {
-    z-index: 1!important;
-    width: 640px;
-    height: 480px;
+.loading {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.95);
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    z-index: 10;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 15px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 15px;
+    border-radius: 10px;
+    margin: 15px 0;
+    display: none;
+}
+
+.error.show {
+    display: block;
+}
+
+.close-error {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-left: 10px;
+    font-size: 0.8rem;
+}
+
+.face-detection-info {
+    text-align: center;
+    padding: 15px;
+    background: rgba(40, 167, 69, 0.1);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    color: #155724;
+    font-weight: 500;
+}
+
+.glasses-overlay {
+    position: absolute;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 20px;
+        margin: 10px;
+    }
+    
+    .header h1 {
+        font-size: 2rem;
+    }
+    
+    .controls {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .btn {
+        width: 100%;
+        max-width: 280px;
+    }
+    
+    .glasses-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }

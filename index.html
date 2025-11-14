@@ -1,137 +1,1007 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset='utf-8'>
-    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Glasses Try-On</title>
-    <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-    <link rel='stylesheet' type='text/css' media='screen' href='https://unpkg.com/webcam-easy/demo/style/webcam-demo.css'>
-    <link rel='stylesheet' type='text/css' media='screen' href='style/virtual-glasses.css'>
-    <script src="//code.jquery.com/jquery-3.3.1.min.js"></script>  
-    <script src="https://unpkg.com/@tensorflow/tfjs-core@2.4.0/dist/tf-core.min.js"></script>
-    <script src="https://unpkg.com/@tensorflow/tfjs-converter@2.4.0/dist/tf-converter.min.js"></script>
-    <script src="https://unpkg.com/@tensorflow/tfjs-backend-webgl@2.4.0/dist/tf-backend-webgl.min.js"></script>
-    <script src="https://unpkg.com/@tensorflow/tfjs-backend-cpu@2.4.0/dist/tf-backend-cpu.min.js"></script>
-    <script src="https://unpkg.com/@tensorflow-models/face-landmarks-detection@0.0.1/dist/face-landmarks-detection.min.js"></script>
-    <script type="text/javascript" src="https://unpkg.com/webcam-easy/dist/webcam-easy.min.js"></script>
-    <script type="text/javascript" src="js/webcam-ui-lib.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body 
+        {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+
+        .camera-section {
+            position: relative;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 25px;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            transform: scaleX(-1);
+            border-radius: 15px;
+        }
+
+        #canvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scaleX(-1);
+            pointer-events: none;
+            z-index: 2;
+            border-radius: 15px;
+        }
+
+        .placeholder {
+            color: #fff;
+            font-size: 1.3rem;
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .placeholder .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.7;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 25px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 140px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #dc3545, #c82333);
+            color: white;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #6c757d, #5a6268);
+            color: white;
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .glasses-selector {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .glasses-selector h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.3rem;
+        }
+
+        .glasses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .glasses-option {
+            background: white;
+            border: 3px solid transparent;
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glasses-option:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .glasses-option.active {
+            border-color: #667eea;
+            background: linear-gradient(145deg, #e3f2fd, #bbdefb);
+            transform: translateY(-3px) scale(1.05);
+        }
+
+        .glasses-preview {
+            width: 80px;
+            height: 40px;
+            object-fit: contain;
+            margin-bottom: 10px;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .glasses-option.active .glasses-preview {
+            filter: drop-shadow(2px 2px 8px rgba(102, 126, 234, 0.4));
+        }
+
+        .glasses-option .label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #555;
+            text-transform: capitalize;
+        }
+
+        .status {
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 0.9rem;
+            font-family: monospace;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 15px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .close-error {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-size: 0.8rem;
+        }
+
+        .face-detection-info {
+            text-align: center;
+            padding: 15px;
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #155724;
+            font-weight: 500;
+        }
+
+        .glasses-overlay {
+            position: absolute;
+            pointer-events: none;
+            z-index: 3;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 280px;
+            }
+            
+            .glasses-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
 </head>
 <body>
-    <main id="virtual-glasses-app">
-        <div class="form-control webcam-start" id="webcam-control">
-            <label class="form-switch">
-            <input type="checkbox" id="webcam-switch">
-            <i></i> 
-            <span id="webcam-caption">Try it On</span>
-            </label>      
-            <button id="cameraFlip" class="btn d-none"></button>                  
+    <div class="container">
+        <div class="header">
+            <h1>🕶️ Virtual Glasses Try-On</h1>
+            <p>Try different glasses styles with AI-powered face detection</p>
         </div>
-        <div id="image-container">
-            
-            <canvas id="canvas" width="640" height="480"></canvas>
-            <div class="loading d-none">
-                Loading Model
-                <div class="spinner-border" role="status">
-                    <span class="sr-only"></span>
-                </div>
-            </div>
 
-            <div id="glasses-slider">
-                <img id="arrowLeft" src="images/arrow-left.png">
-                <div id="glasses-list">
-                    <ul>
-                        <li class="selected-glasses">
-                            <img src="3dmodel/glasses-01/glasses_01.png" data-3d-type="gltf" 
-                                                             data-3d-model-path="3dmodel/glasses-01/"
-                                                             data-3d-model="scene.gltf"
-                                                             data-3d-x="0"
-                                                             data-3d-y="0.5"
-                                                             data-3d-z="0"
-                                                             data-3d-up="10"
-                                                             data-3d-scale="0.01">
-                        </li>                       
-                        <li >
-                            <img src="3dmodel/glasses-02/glasses_02.png" data-3d-type="gltf" 
-                                                             data-3d-model-path="3dmodel/glasses-02/"
-                                                             data-3d-model="scene.gltf"
-                                                             data-3d-x="0"
-                                                             data-3d-y="0.3"
-                                                             data-3d-z="0"
-                                                             data-3d-up="0"
-                                                             data-3d-scale="0.4">
-                        </li>
-                        <li >
-                            <img src="3dmodel/glasses-03/glasses_03.png" data-3d-type="gltf" 
-                                                             data-3d-model-path="3dmodel/glasses-03/"
-                                                             data-3d-model="scene.gltf"
-                                                             data-3d-x="0"
-                                                             data-3d-y="0.3"
-                                                             data-3d-z="0"
-                                                             data-3d-up="-40"
-                                                             data-3d-scale="0.4">
-                        </li>
-                        <li>
-                            <img src="3dmodel/glasses-04/glasses_04.png" data-3d-type="gltf" 
-                                                            data-3d-model-path="3dmodel/glasses-04/"
-                                                            data-3d-model="scene.gltf"
-                                                            data-3d-x="0"
-                                                            data-3d-y="0.5"
-                                                            data-3d-z="0"
-                                                            data-3d-up="0"
-                                                            data-3d-scale="12">
-                        </li>
-                        <li >
-                            <img src="3dmodel/glasses-05/glasses_05.png" data-3d-type="gltf" 
-                                                             data-3d-model-path="3dmodel/glasses-05/"
-                                                             data-3d-model="scene.gltf"
-                                                             data-3d-x="0"
-                                                             data-3d-y="0"
-                                                             data-3d-z="0"
-                                                             data-3d-up="-80"
-                                                             data-3d-scale="0.11">
-                        </li>
-                        <li >
-                            <img src="3dmodel/glasses-06/glasses_06.png" data-3d-type="gltf" 
-                                                             data-3d-model-path="3dmodel/glasses-06/"
-                                                             data-3d-model="scene.gltf"
-                                                             data-3d-x="0"
-                                                             data-3d-y="0.3"
-                                                             data-3d-z="0"
-                                                             data-3d-up="-30"
-                                                             data-3d-scale="0.1">
-                        </li>
-                        <li >
-                            <img src="3dmodel/glasses-07/glasses_07.png" data-3d-type="gltf" 
-                                                             data-3d-model-path="3dmodel/glasses-07/"
-                                                             data-3d-model="scene.gltf"
-                                                             data-3d-x="0"
-                                                             data-3d-y="0.3"
-                                                             data-3d-z="0"
-                                                             data-3d-up="0"
-                                                             data-3d-scale="0.8">
-                        </li>
-                    </ul>
-                </div>
-                <img id="arrowRight" src="images/arrow-right.png">
+        <div class="camera-section" id="cameraSection">
+            <div class="placeholder" id="placeholder">
+                <div class="icon">📷</div>
+                <div>Click "Start Camera" to begin</div>
+            </div>
+            <video id="video" style="display: none;" autoplay playsinline muted></video>
+            <canvas id="canvas" style="display: none;"></canvas>
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading AI model...</p>
             </div>
         </div>
-        
-        
-        <div id="errorMsg" class="col-12 col-md-6 alert-danger d-none">
-            Fail to start camera, please allow permision to access camera. <br/>
-            If you are browsing through social media built in browsers, you would need to open the page in Sarafi (iPhone)/ Chrome (Android)
-            <button id="closeError" class="btn btn-primary ml-3">OK</button>
+
+        <div class="controls">
+            <button class="btn btn-primary" id="startCamera">🎥 Start Camera</button>
+            <button class="btn btn-danger" id="stopCamera" style="display: none;">⏹️ Stop Camera</button>
+            <button class="btn btn-secondary" id="capturePhoto" style="display: none;">📸 Take Photo</button>
         </div>
-        <div class="md-modal md-effect-12">
-            <div id="app-panel" class="app-panel md-content row p-0 m-0">     
-                <div id="webcam-container" class="webcam-container col-12 d-none p-0 m-0">
-                    <video id="webcam" autoplay playsinline width="640" height="480"></video>
+
+        <div class="face-detection-info" id="faceInfo" style="display: none;">
+            <span id="faceCount">Detecting faces...</span>
+        </div>
+
+        <div class="glasses-selector">
+            <h3>Choose Your Style</h3>
+            <div class="glasses-grid">
+                <div class="glasses-option active" data-style="glasses-04" data-image="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB4PSIxMCIgeT0iMjAiIHdpZHRoPSI3MCIgaGVpZ2h0PSI0MCIgcng9IjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjEyMCIgeT0iMjAiIHdpZHRoPSI3MCIgaGVpZ2h0PSI0MCIgcng9IjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSI4MCIgeTE9IjQwIiB4Mj0iMTIwIiB5Mj0iNDAiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB4PSIxMCIgeT0iMjAiIHdpZHRoPSI3MCIgaGVpZ2h0PSI0MCIgcng9IjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjEyMCIgeT0iMjAiIHdpZHRoPSI3MCIgaGVpZ2h0PSI0MCIgcng9IjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSI4MCIgeTE9IjQwIiB4Mj0iMTIwIiB5Mj0iNDAiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+" alt="Classic Glasses" class="glasses-preview">
+                    <div class="label">Classic</div>
                 </div>
-            </div>        
+                <div class="glasses-option" data-style="glasses-05" data-image="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB4PSIxMCIgeT0iMTUiIHdpZHRoPSI3NSIgaGVpZ2h0PSI1MCIgcng9IjIiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjExNSIgeT0iMTUiIHdpZHRoPSI3NSIgaGVpZ2h0PSI1MCIgcng9IjIiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSI4NSIgeTE9IjQwIiB4Mj0iMTE1IiB5Mj0iNDAiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiMyMjIiIHN0cm9rZS13aWR0aD0iNCIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjMjIyIiBzdHJva2Utd2lkdGg9IjQiLz4KPC9zdmc+">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB4PSIxMCIgeT0iMTUiIHdpZHRoPSI3NSIgaGVpZ2h0PSI1MCIgcng9IjIiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjExNSIgeT0iMTUiIHdpZHRoPSI3NSIgaGVpZ2h0PSI1MCIgcng9IjIiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI0IiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSI4NSIgeTE9IjQwIiB4Mj0iMTE1IiB5Mj0iNDAiIHN0cm9rZT0iIzIyMiIgc3Ryb2tlLXdpZHRoPSI0Ii8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiMyMjIiIHN0cm9rZS13aWR0aD0iNCIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjMjIyIiBzdHJva2Utd2lkdGg9IjQiLz4KPC9zdmc+" alt="Rectangular Glasses" class="glasses-preview">
+                    <div class="label">Rectangular</div>
+                </div>
+                <div class="glasses-option" data-style="glasses-06" data-image="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8Y2lyY2xlIGN4PSI0NSIgY3k9IjQwIiByPSIzMCIgc3Ryb2tlPSIjNDQ0IiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiLz4KPGNpcmNsZSBjeD0iMTU1IiBjeT0iNDAiIHI9IjMwIiBzdHJva2U9IiM0NDQiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPgo8bGluZSB4MT0iNzUiIHkxPSI0MCIgeDI9IjEyNSIgeTI9IjQwIiBzdHJva2U9IiM0NDQiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTUiIHkxPSI0MCIgeDI9IjUiIHkyPSIzNSIgc3Ryb2tlPSIjNDQ0IiBzdHJva2Utd2lkdGg9IjMiLz4KPGxpbmUgeDE9IjE4NSIgeTE9IjQwIiB4Mj0iMTk1IiB5Mj0iMzUiIHN0cm9rZT0iIzQ0NCIgc3Ryb2tlLXdpZHRoPSIzIi8+Cjwvc3ZnPg==">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8Y2lyY2xlIGN4PSI0NSIgY3k9IjQwIiByPSIzMCIgc3Ryb2tlPSIjNDQ0IiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiLz4KPGNpcmNsZSBjeD0iMTU1IiBjeT0iNDAiIHI9IjMwIiBzdHJva2U9IiM0NDQiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPgo8bGluZSB4MT0iNzUiIHkxPSI0MCIgeDI9IjEyNSIgeTI9IjQwIiBzdHJva2U9IiM0NDQiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTUiIHkxPSI0MCIgeDI9IjUiIHkyPSIzNSIgc3Ryb2tlPSIjNDQ0IiBzdHJva2Utd2lkdGg9IjMiLz4KPGxpbmUgeDE9IjE4NSIgeTE9IjQwIiB4Mj0iMTk1IiB5Mj0iMzUiIHN0cm9rZT0iIzQ0NCIgc3Ryb2tlLXdpZHRoPSIzIi8+Cjwvc3ZnPg==" alt="Round Glasses" class="glasses-preview">
+                    <div class="label">Round</div>
+                </div>
+                <div class="glasses-option" data-style="glasses-07" data-image="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZWxsaXBzZSBjeD0iNDUiIGN5PSI0MCIgcng9IjM1IiByeT0iMjUiIHN0cm9rZT0iIzU1NSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxlbGxpcHNlIGN4PSIxNTUiIGN5PSI0MCIgcng9IjM1IiByeT0iMjUiIHN0cm9rZT0iIzU1NSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxwYXRoIGQ9Ik04MCA0MEM4NSAzNSA5NSAzNSAxMDAgNDAiIHN0cm9rZT0iIzU1NSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiM1NTUiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjNTU1IiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZWxsaXBzZSBjeD0iNDUiIGN5PSI0MCIgcng9IjM1IiByeT0iMjUiIHN0cm9rZT0iIzU1NSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxlbGxpcHNlIGN4PSIxNTUiIGN5PSI0MCIgcng9IjM1IiByeT0iMjUiIHN0cm9rZT0iIzU1NSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxwYXRoIGQ9Ik04MCA0MEM4NSAzNSA5NSAzNSAxMDAgNDAiIHN0cm9rZT0iIzU1NSIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiM1NTUiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjNTU1IiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+" alt="Aviator Glasses" class="glasses-preview">
+                    <div class="label">Aviator</div>
+                </div>
+            </div>
         </div>
-        <div class="md-overlay"></div>
-    </main>
-    <script type="module" src='js/virtual-glasses.js'></script>
+
+        <div class="error" id="errorDiv">
+            <span id="errorText"></span>
+            <button class="close-error" id="closeError">✕</button>
+        </div>
+    </div>
+
+    <div class="status" id="status">Ready</div>
+
+    <!-- Include TensorFlow.js and Face Landmarks Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection@0.0.3/dist/face-landmarks-detection.js"></script>
+
+    <script>
+        // Webcam UI Library
+        class WebcamUILib {
+            constructor() {
+                this.video = document.getElementById('video');
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas ? this.canvas.getContext('2d') : null;
+                this.stream = null;
+                this.isRunning = false;
+                
+                this.constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
+                };
+                
+                this.callbacks = {
+                    onStart: null,
+                    onStop: null,
+                    onError: null
+                };
+            }
+
+            async startCamera() {
+                try {
+                    this.updateStatus('Starting camera...');
+                    this.showLoading();
+
+                    this.stream = await navigator.mediaDevices.getUserMedia(this.constraints);
+                    this.video.srcObject = this.stream;
+                    
+                    await new Promise(resolve => {
+                        this.video.onloadedmetadata = resolve;
+                    });
+
+                    if (this.canvas) {
+                        this.canvas.width = this.video.videoWidth || 640;
+                        this.canvas.height = this.video.videoHeight || 480;
+                    }
+
+                    this.isRunning = true;
+                    this.updateUI(true);
+                    this.hideLoading();
+                    
+                    if (this.callbacks.onStart) {
+                        this.callbacks.onStart();
+                    }
+
+                    this.updateStatus('Camera active');
+                    return true;
+
+                } catch (error) {
+                    this.hideLoading();
+                    const errorMsg = this.getCameraErrorMessage(error);
+                    this.showError(errorMsg);
+                    this.updateStatus('Camera failed');
+                    
+                    if (this.callbacks.onError) {
+                        this.callbacks.onError(error);
+                    }
+                    
+                    return false;
+                }
+            }
+
+            stopCamera() {
+                this.isRunning = false;
+
+                if (this.stream) {
+                    this.stream.getTracks().forEach(track => track.stop());
+                    this.stream = null;
+                }
+
+                if (this.video) {
+                    this.video.srcObject = null;
+                }
+
+                if (this.canvas && this.ctx) {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+
+                this.updateUI(false);
+                
+                if (this.callbacks.onStop) {
+                    this.callbacks.onStop();
+                }
+
+                this.updateStatus('Camera stopped');
+            }
+
+            updateUI(isActive) {
+                const placeholder = document.getElementById('placeholder');
+                const startBtn = document.getElementById('startCamera');
+                const stopBtn = document.getElementById('stopCamera');
+                const captureBtn = document.getElementById('capturePhoto');
+                const faceInfo = document.getElementById('faceInfo');
+
+                if (isActive) {
+                    if (placeholder) placeholder.style.display = 'none';
+                    if (this.video) this.video.style.display = 'block';
+                    if (this.canvas) this.canvas.style.display = 'block';
+                    if (startBtn) startBtn.style.display = 'none';
+                    if (stopBtn) stopBtn.style.display = 'inline-block';
+                    if (captureBtn) captureBtn.style.display = 'inline-block';
+                    if (faceInfo) faceInfo.style.display = 'block';
+                } else {
+                    if (placeholder) placeholder.style.display = 'block';
+                    if (this.video) this.video.style.display = 'none';
+                    if (this.canvas) this.canvas.style.display = 'none';
+                    if (startBtn) startBtn.style.display = 'inline-block';
+                    if (stopBtn) stopBtn.style.display = 'none';
+                    if (captureBtn) captureBtn.style.display = 'none';
+                    if (faceInfo) faceInfo.style.display = 'none';
+                }
+            }
+
+            showLoading() {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.display = 'block';
+                }
+            }
+
+            hideLoading() {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('errorDiv');
+                const errorText = document.getElementById('errorText');
+                
+                if (errorText) errorText.textContent = message;
+                if (errorDiv) errorDiv.classList.add('show');
+            }
+
+            hideError() {
+                const errorDiv = document.getElementById('errorDiv');
+                if (errorDiv) errorDiv.classList.remove('show');
+            }
+
+            updateStatus(message) {
+                const status = document.getElementById('status');
+                if (status) {
+                    status.textContent = message;
+                }
+                console.log('[WebcamUI]', message);
+            }
+
+            capturePhoto(filename = null) {
+                if (!this.video || !this.canvas || !this.ctx) {
+                    this.showError('Camera not ready for photo capture');
+                    return null;
+                }
+
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = this.canvas.width;
+                tempCanvas.height = this.canvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+
+                tempCtx.save();
+                tempCtx.scale(-1, 1);
+                tempCtx.drawImage(this.video, -tempCanvas.width, 0);
+                tempCtx.restore();
+
+                tempCtx.drawImage(this.canvas, 0, 0);
+
+                const link = document.createElement('a');
+                link.download = filename || `virtual-glasses-${Date.now()}.png`;
+                link.href = tempCanvas.toDataURL('image/png');
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                this.updateStatus('Photo captured and downloaded!');
+                return tempCanvas.toDataURL('image/png');
+            }
+
+            getCameraErrorMessage(error) {
+                const errorMessages = {
+                    'NotAllowedError': 'Camera access denied. Please allow camera permission and refresh the page.',
+                    'NotFoundError': 'No camera found. Please connect a camera and refresh the page.',
+                    'NotReadableError': 'Camera is busy or not accessible. Please close other applications using the camera.',
+                    'OverconstrainedError': 'Camera constraints not supported. Please try with a different camera.',
+                    'SecurityError': 'Camera access blocked due to security restrictions.',
+                    'AbortError': 'Camera access was aborted.',
+                    'TypeError': 'Camera not supported in this browser.'
+                };
+
+                return errorMessages[error.name] || `Camera error: ${error.message}`;
+            }
+
+            static isCameraSupported() {
+                return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            }
+
+            setCallbacks(callbacks) {
+                this.callbacks = { ...this.callbacks, ...callbacks };
+            }
+
+            getVideoElement() {
+                return this.video;
+            }
+
+            getCanvasElement() {
+                return this.canvas;
+            }
+
+            getCanvasContext() {
+                return this.ctx;
+            }
+
+            isActive() {
+                return this.isRunning;
+            }
+
+            updateFaceCount(count) {
+                const faceInfo = document.getElementById('faceCount');
+                if (!faceInfo) return;
+
+                if (count === 0) {
+                    faceInfo.textContent = 'No faces detected - look at the camera';
+                    faceInfo.style.color = '#856404';
+                } else if (count === 1) {
+                    faceInfo.textContent = '✅ Face detected - glasses applied!';
+                    faceInfo.style.color = '#155724';
+                } else {
+                    faceInfo.textContent = `✅ ${count} faces detected`;
+                    faceInfo.style.color = '#155724';
+                }
+            }
+
+            cleanup() {
+                this.stopCamera();
+            }
+        }
+
+        // Virtual Glasses Try-On Application
+        class VirtualGlassesTryOn {
+            constructor() {
+                this.webcamUI = new WebcamUILib();
+                this.model = null;
+                this.animationId = null;
+                this.currentGlassesStyle = 'glasses-04';
+                this.currentGlassesImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMjAwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB4PSIxMCIgeT0iMjAiIHdpZHRoPSI3MCIgaGVpZ2h0PSI0MCIgcng9IjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxyZWN0IHg9IjEyMCIgeT0iMjAiIHdpZHRoPSI3MCIgaGVpZ2h0PSI0MCIgcng9IjUiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CjxsaW5lIHgxPSI4MCIgeTE9IjQwIiB4Mj0iMTIwIiB5Mj0iNDAiIHN0cm9rZT0iIzMzMyIgc3Ryb2tlLXdpZHRoPSIzIi8+CjxsaW5lIHgxPSIxMCIgeTE9IjQwIiB4Mj0iMCIgeTI9IjM1IiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iMyIvPgo8bGluZSB4MT0iMTkwIiB5MT0iNDAiIHgyPSIyMDAiIHkyPSIzNSIgc3Ryb2tlPSIjMzMzIiBzdHJva2Utd2lkdGg9IjMiLz4KPC9zdmc+';
+                this.glassesImg = null;
+                this.isModelLoaded = false;
+                
+                this.lastGlassesPosition = { x: 0, y: 0, width: 0, height: 0, angle: 0 };
+                this.smoothingFactor = 0.7;
+                
+                this.faceDetectionConfig = {
+                    maxFaces: 1,
+                    refineLandmarks: true,
+                    minDetectionConfidence: 0.7,
+                    minTrackingConfidence: 0.5
+                };
+                
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.setupWebcamCallbacks();
+                this.preloadGlassesImages();
+                this.updateStatus('Ready - Click Start Camera');
+                
+                setTimeout(() => {
+                    if (typeof tf === 'undefined' || typeof faceLandmarksDetection === 'undefined') {
+                        this.showError('Required AI libraries failed to load. Please refresh the page.');
+                    }
+                }, 2000);
+            }
+
+            setupEventListeners() {
+                const startBtn = document.getElementById('startCamera');
+                const stopBtn = document.getElementById('stopCamera');
+                const captureBtn = document.getElementById('capturePhoto');
+                
+                if (startBtn) startBtn.addEventListener('click', () => this.startCamera());
+                if (stopBtn) stopBtn.addEventListener('click', () => this.stopCamera());
+                if (captureBtn) captureBtn.addEventListener('click', () => this.capturePhoto());
+
+                document.querySelectorAll('.glasses-option').forEach(option => {
+                    option.addEventListener('click', (e) => this.selectGlasses(e.currentTarget));
+                });
+
+                const closeErrorBtn = document.getElementById('closeError');
+                if (closeErrorBtn) {
+                    closeErrorBtn.addEventListener('click', () => this.webcamUI.hideError());
+                }
+
+                window.addEventListener('beforeunload', () => this.cleanup());
+            }
+
+            setupWebcamCallbacks() {
+                this.webcamUI.setCallbacks({
+                    onStart: () => this.onCameraStart(),
+                    onStop: () => this.onCameraStop(),
+                    onError: (error) => this.onCameraError(error)
+                });
+            }
+
+            preloadGlassesImages() {
+                const glassesOptions = document.querySelectorAll('.glasses-option');
+                
+                glassesOptions.forEach(option => {
+                    const imgSrc = option.dataset.image;
+                    if (imgSrc) {
+                        const img = new Image();
+                        img.src = imgSrc;
+                        img.onerror = () => {
+                            console.warn(`Failed to load glasses image: ${imgSrc}`);
+                            option.style.opacity = '0.5';
+                            option.title = 'Image not available';
+                        };
+                    }
+                });
+
+                this.loadGlassesImage(this.currentGlassesImage);
+            }
+
+            loadGlassesImage(imageSrc) {
+                this.glassesImg = new Image();
+                this.glassesImg.onload = () => {
+                    this.updateStatus(`Loaded glasses: ${this.currentGlassesStyle}`);
+                };
+                this.glassesImg.onerror = () => {
+                    console.error(`Failed to load glasses image: ${imageSrc}`);
+                    this.showError(`Failed to load glasses image: ${imageSrc}`);
+                };
+                this.glassesImg.src = imageSrc;
+            }
+
+            async startCamera() {
+                const success = await this.webcamUI.startCamera();
+                if (success) {
+                    await this.loadFaceDetectionModel();
+                    this.startFaceDetection();
+                }
+            }
+
+            stopCamera() {
+                this.stopFaceDetection();
+                this.webcamUI.stopCamera();
+            }
+
+            capturePhoto() {
+                const filename = `virtual-glasses-${this.currentGlassesStyle}-${Date.now()}.png`;
+                this.webcamUI.capturePhoto(filename);
+            }
+
+            async loadFaceDetectionModel() {
+                if (this.model || this.isModelLoaded) return;
+
+                try {
+                    this.updateStatus('Loading AI model...');
+                    this.webcamUI.showLoading();
+
+                    this.model = await faceLandmarksDetection.load(
+                        faceLandmarksDetection.SupportedPackages.mediapipeFacemesh,
+                        this.faceDetectionConfig
+                    );
+                    
+                    this.isModelLoaded = true;
+                    this.webcamUI.hideLoading();
+                    this.updateStatus('AI model loaded successfully');
+
+                } catch (error) {
+                    this.webcamUI.hideLoading();
+                    this.showError(`AI model loading failed: ${error.message}`);
+                    throw error;
+                }
+            }
+
+            startFaceDetection() {
+                if (!this.webcamUI.isActive() || !this.model) return;
+                
+                this.detectFaces();
+                this.updateStatus('Face detection running');
+            }
+
+            stopFaceDetection() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+            }
+
+            async detectFaces() {
+                if (!this.webcamUI.isActive() || !this.model) return;
+
+                try {
+                    const video = this.webcamUI.getVideoElement();
+                    const canvas = this.webcamUI.getCanvasElement();
+                    const ctx = this.webcamUI.getCanvasContext();
+
+                    if (!video || !canvas || !ctx) return;
+
+                    const faces = await this.model.estimateFaces({
+                        input: video,
+                        returnTensors: false,
+                        flipHorizontal: false,
+                        predictIrises: true
+                    });
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    faces.forEach(face => {
+                        if (face.scaledMesh && face.scaledMesh.length > 168) {
+                            this.drawGlassesOnFace(ctx, face.scaledMesh);
+                        }
+                    });
+
+                    this.webcamUI.updateFaceCount(faces.length);
+
+                } catch (error) {
+                    console.warn('Face detection error:', error);
+                }
+
+                if (this.webcamUI.isActive()) {
+                    this.animationId = requestAnimationFrame(() => this.detectFaces());
+                }
+            }
+
+            drawGlassesOnFace(ctx, landmarks) {
+                if (!this.glassesImg || !this.glassesImg.complete) return;
+
+                // Corrected landmark indices for MediaPipe Face Mesh
+                const leftEyeInner = landmarks[133];   
+                const rightEyeInner = landmarks[362];  
+                const leftEyeOuter = landmarks[33];    
+                const rightEyeOuter = landmarks[263];  
+                const leftEyeTop = landmarks[159];     
+                const rightEyeTop = landmarks[386];    
+                const leftEyeBottom = landmarks[145];  
+                const rightEyeBottom = landmarks[374]; 
+
+                if (!leftEyeInner || !rightEyeInner || !leftEyeOuter || !rightEyeOuter) {
+                    console.warn('Essential eye landmarks not detected');
+                    return;
+                }
+
+                // Calculate more precise eye centers
+                const leftEyeCenter = [
+                    (leftEyeInner[0] + leftEyeOuter[0]) / 2,
+                    (leftEyeTop[1] + leftEyeBottom[1]) / 2  
+                ];
+                const rightEyeCenter = [
+                    (rightEyeInner[0] + rightEyeOuter[0]) / 2,
+                    (rightEyeTop[1] + rightEyeBottom[1]) / 2
+                ];
+
+                // Position glasses at the middle point between eyes
+                const glassesX = (leftEyeCenter[0] + rightEyeCenter[0]) / 2;
+                const glassesY = (leftEyeCenter[1] + rightEyeCenter[1]) / 2;
+
+                // Calculate inter-pupillary distance for scaling
+                const eyeDistance = Math.sqrt(
+                    Math.pow(rightEyeCenter[0] - leftEyeCenter[0], 2) + 
+                    Math.pow(rightEyeCenter[1] - leftEyeCenter[1], 2)
+                );
+
+                // Calculate face angle but limit rotation severely
+                let faceAngle = Math.atan2(
+                    rightEyeCenter[1] - leftEyeCenter[1], 
+                    rightEyeCenter[0] - leftEyeCenter[0]
+                );
+                
+                // Limit rotation to prevent excessive tilt
+                faceAngle = Math.max(-0.08, Math.min(0.08, faceAngle)); // Max ~4.6 degrees
+
+                // Improved scaling for better fit
+                const baseScale = 2.2; // Increased base scale
+                const glassesScale = (eyeDistance * baseScale) / 100; 
+                let finalWidth = this.glassesImg.width * glassesScale;
+                let finalHeight = this.glassesImg.height * glassesScale;
+
+                // Ensure proper minimum and maximum sizes
+                const minWidth = eyeDistance * 2.0;  
+                const maxWidth = eyeDistance * 3.2;  
+                
+                finalWidth = Math.max(minWidth, Math.min(maxWidth, finalWidth));
+                finalHeight = finalWidth * (this.glassesImg.height / this.glassesImg.width);
+
+                // Apply position smoothing
+                if (this.lastGlassesPosition.x === 0) {
+                    this.lastGlassesPosition = {
+                        x: glassesX,
+                        y: glassesY,
+                        width: finalWidth,
+                        height: finalHeight,
+                        angle: faceAngle
+                    };
+                }
+
+                const smoothingFactor = 0.65; // Balanced smoothing
+                const smoothedX = this.lastGlassesPosition.x * smoothingFactor + glassesX * (1 - smoothingFactor);
+                const smoothedY = this.lastGlassesPosition.y * smoothingFactor + glassesY * (1 - smoothingFactor);
+                const smoothedWidth = this.lastGlassesPosition.width * smoothingFactor + finalWidth * (1 - smoothingFactor);
+                const smoothedHeight = this.lastGlassesPosition.height * smoothingFactor + finalHeight * (1 - smoothingFactor);
+                const smoothedAngle = this.lastGlassesPosition.angle * smoothingFactor + faceAngle * (1 - smoothingFactor);
+
+                this.lastGlassesPosition = {
+                    x: smoothedX,
+                    y: smoothedY,
+                    width: smoothedWidth,
+                    height: smoothedHeight,
+                    angle: smoothedAngle
+                };
+
+                // Draw glasses with improved positioning
+                ctx.save();
+                ctx.globalAlpha = 0.85;
+                ctx.globalCompositeOperation = 'source-over';
+                
+                ctx.translate(smoothedX, smoothedY);
+                ctx.rotate(smoothedAngle);
+                
+                // Draw glasses centered on face
+                ctx.drawImage(
+                    this.glassesImg,
+                    -smoothedWidth / 2,
+                    -smoothedHeight / 2,
+                    smoothedWidth,
+                    smoothedHeight
+                );
+                
+                ctx.restore();
+            }
+
+            selectGlasses(element) {
+                document.querySelector('.glasses-option.active')?.classList.remove('active');
+                element.classList.add('active');
+                
+                this.currentGlassesStyle = element.dataset.style;
+                this.currentGlassesImage = element.dataset.image;
+                
+                this.loadGlassesImage(this.currentGlassesImage);
+                
+                this.updateStatus(`Selected: ${element.querySelector('.label').textContent} glasses`);
+            }
+
+            onCameraStart() {
+                this.updateStatus('Camera started successfully');
+            }
+
+            onCameraStop() {
+                this.stopFaceDetection();
+                this.updateStatus('Camera stopped');
+            }
+
+            onCameraError(error) {
+                this.stopFaceDetection();
+                console.error('Camera error:', error);
+            }
+
+            showError(message) {
+                this.webcamUI.showError(message);
+            }
+
+            updateStatus(message) {
+                this.webcamUI.updateStatus(message);
+            }
+
+            cleanup() {
+                this.stopFaceDetection();
+                this.webcamUI.cleanup();
+                
+                if (this.model) {
+                    this.model = null;
+                }
+                
+                this.isModelLoaded = false;
+            }
+        }
+
+        // Initialize the application when DOM is ready
+        let virtualGlassesApp;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof tf === 'undefined') {
+                console.error('TensorFlow.js not found. Please include TensorFlow.js');
+                return;
+            }
+
+            if (typeof faceLandmarksDetection === 'undefined') {
+                console.error('Face Landmarks Detection not found. Please include face-landmarks-detection.js');
+                return;
+            }
+
+            try {
+                virtualGlassesApp = new VirtualGlassesTryOn();
+                console.log('Virtual Glasses Try-On application initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Virtual Glasses Try-On:', error);
+            }
+        });
+
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (virtualGlassesApp) {
+                if (document.hidden) {
+                    virtualGlassesApp.stopFaceDetection();
+                } else if (virtualGlassesApp.webcamUI.isActive()) {
+                    setTimeout(() => {
+                        virtualGlassesApp.startFaceDetection();
+                    }, 100);
+                }
+            }
+        });
+    </script>
 </body>
 </html>
