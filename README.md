@@ -6,15 +6,11 @@ Experience the cutting-edge fusion of computer vision and augmented reality
 
 Allowing users to try on various 3D glasses in real-time.
 
-## Live Demo
-**[https://bensonruan.com/virtual-try-on-glasses-with-javascript/](https://bensonruan.com/virtual-try-on-glasses-with-javascript/)**
-
-![virtual-glasses-try-on](https://bensonruan.com/wp-content/webp-express/webp-images/uploads/2023/07/Virtual-Glasses-Try-On-Demo.webp)
 
 ## Installing
 Clone this repository to your local computer
 ``` bash
-git https://github.com/bensonruan/Virtual-Glasses.git
+git clone https://github.com/monika2240/Virtualglasses-1.git
 ```
 Install three.js
 ``` bash
@@ -31,7 +27,6 @@ The facemesh detected keypoints that used for overlay the 3D Glasses:
 * Bottom of Nose : 2
 * Right Eye : 372
 
-![face-landmarks](https://bensonruan.com/wp-content/webp-express/webp-images/uploads/2023/07/virtual_glasses_face_mesh_key_points.jpg.webp)
 
 ## Try glasses on
 * Click "Try it On" to turn on the Webcam switch, and allowing the browser to access your webcam 
